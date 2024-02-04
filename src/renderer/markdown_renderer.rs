@@ -2,7 +2,7 @@ use crate::book::{Book, BookItem, LoadedBook};
 use crate::errors::*;
 use crate::renderer::{RenderContext, Renderer};
 use crate::utils;
-
+use log::trace;
 use std::fs;
 use std::path::Path;
 

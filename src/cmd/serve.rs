@@ -1,7 +1,8 @@
+use super::command_prelude::*;
 #[cfg(feature = "watch")]
 use super::watch;
 use crate::{get_book_dir, get_build_opts, open};
-use clap::{App, Arg, ArgMatches, SubCommand};
+use clap::builder::NonEmptyStringValueParser;
 use futures_util::sink::SinkExt;
 use futures_util::StreamExt;
 use http::Uri;
@@ -19,37 +20,30 @@ use warp::Filter;
 const LIVE_RELOAD_ENDPOINT: &str = "__livereload";
 
 // Create clap subcommand arguments
-pub fn make_subcommand<'a, 'b>() -> App<'a, 'b> {
-    SubCommand::with_name("serve")
+pub fn make_subcommand() -> Command {
+    Command::new("serve")
         .about("Serves a book at http://localhost:3000, and rebuilds it on changes")
-        .arg_from_usage(
-            "-d, --dest-dir=[dest-dir] 'Output directory for the book{n}\
-             Relative paths are interpreted relative to the book's root directory.{n}\
-             If omitted, mdBook uses build.build-dir from book.toml or defaults to `./book`.'",
-        )
-        .arg_from_usage(
-            "[dir] 'Root directory for the book{n}\
-             (Defaults to the Current Directory when omitted)'",
-        )
+        .arg_dest_dir()
+        .arg_root_dir()
         .arg(
-            Arg::with_name("hostname")
-                .short("n")
+            Arg::new("hostname")
+                .short('n')
                 .long("hostname")
-                .takes_value(true)
+                .num_args(1)
                 .default_value("localhost")
-                .empty_values(false)
+                .value_parser(NonEmptyStringValueParser::new())
                 .help("Hostname to listen on for HTTP connections"),
         )
         .arg(
-            Arg::with_name("port")
-                .short("p")
+            Arg::new("port")
+                .short('p')
                 .long("port")
-                .takes_value(true)
+                .num_args(1)
                 .default_value("3000")
-                .empty_values(false)
+                .value_parser(NonEmptyStringValueParser::new())
                 .help("Port to use for HTTP connections"),
         )
-        .arg_from_usage("-o, --open 'Opens the book server in a web browser'")
+        .arg_open()
         .arg_from_usage(
             "-l, --language=[language] 'Language to render the compiled book in.{n}\
                          Only valid if the [language] table in the config is not empty.{n}\
@@ -61,20 +55,19 @@ pub fn make_subcommand<'a, 'b>() -> App<'a, 'b> {
 pub fn execute(args: &ArgMatches) -> Result<()> {
     let book_dir = get_book_dir(args);
     let build_opts = get_build_opts(args);
-    let mut book = MDBook::load_with_build_opts(&book_dir, build_opts.clone())?;
+    let mut book = MDBook::load_with_build_opts(book_dir, build_opts.clone())?;
 
-    let port = args.value_of("port").unwrap();
-    let hostname = args.value_of("hostname").unwrap();
-    let open_browser = args.is_present("open");
+    let port = args.get_one::<String>("port").unwrap();
+    let hostname = args.get_one::<String>("hostname").unwrap();
+    let open_browser = args.get_flag("open");
 
     let address = format!("{}:{}", hostname, port);
 
-    let livereload_url = format!("ws://{}/{}", address, LIVE_RELOAD_ENDPOINT);
     let update_config = |book: &mut MDBook| {
         book.config
-            .set("output.html.livereload-url", &livereload_url)
-            .expect("livereload-url update failed");
-        if let Some(dest_dir) = args.value_of("dest-dir") {
+            .set("output.html.live-reload-endpoint", LIVE_RELOAD_ENDPOINT)
+            .expect("live-reload-endpoint update failed");
+        if let Some(dest_dir) = args.get_one::<PathBuf>("dest-dir") {
             book.config.build.build_dir = dest_dir.into();
         }
         // Override site-url for local serving of the 404 file
@@ -103,8 +96,7 @@ pub fn execute(args: &ArgMatches) -> Result<()> {
     let input_404 = book
         .config
         .get("output.html.input-404")
-        .map(toml::Value::as_str)
-        .and_then(std::convert::identity) // flatten
+        .and_then(toml::Value::as_str)
         .map(ToString::to_string);
     let file_404 = get_404_output_file(&input_404);
 

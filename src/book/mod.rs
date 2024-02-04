@@ -15,6 +15,7 @@ pub use self::init::BookBuilder;
 pub use self::summary::{parse_summary, Link, SectionNumber, Summary, SummaryItem};
 
 use std::collections::HashMap;
+use log::{debug, error, info, log_enabled, trace, warn};
 use std::io::Write;
 use std::path::PathBuf;
 use std::process::Command;
@@ -345,11 +346,19 @@ impl MDBook {
                     _ => continue,
                 };
 
-                let path = self.source_dir().join(&chapter_path);
-                info!("Testing file: {:?}", path);
+                if let Some(chapter) = chapter {
+                    if ch.name != chapter && chapter_path.to_str() != Some(chapter) {
+                        if chapter == "?" {
+                            info!("Skipping chapter '{}'...", ch.name);
+                        }
+                        continue;
+                    }
+                }
+                chapter_found = true;
+                info!("Testing chapter '{}': {:?}", ch.name, chapter_path);
 
                 // write preprocessed file to tempdir
-                let path = temp_dir.path().join(&chapter_path);
+                let path = temp_dir.path().join(chapter_path);
                 let mut tmpf = utils::fs::create_file(&path)?;
                 tmpf.write_all(ch.content.as_bytes())?;
 
@@ -359,17 +368,18 @@ impl MDBook {
                 if let Some(edition) = self.config.rust.edition {
                     match edition {
                         RustEdition::E2015 => {
-                            cmd.args(&["--edition", "2015"]);
+                            cmd.args(["--edition", "2015"]);
                         }
                         RustEdition::E2018 => {
-                            cmd.args(&["--edition", "2018"]);
+                            cmd.args(["--edition", "2018"]);
                         }
                         RustEdition::E2021 => {
-                            cmd.args(&["--edition", "2021"]);
+                            cmd.args(["--edition", "2021"]);
                         }
                     }
                 }
 
+                debug!("running {:?}", cmd);
                 let output = cmd.output()?;
 
                 if !output.status.success() {
@@ -385,6 +395,11 @@ impl MDBook {
         }
         if failed {
             bail!("One or more tests failed");
+        }
+        if let Some(chapter) = chapter {
+            if !chapter_found {
+                bail!("Chapter not found: {}", chapter);
+            }
         }
         Ok(())
     }
@@ -485,7 +500,7 @@ fn determine_renderers(config: &Config) -> Vec<Box<dyn Renderer>> {
     renderers
 }
 
-const DEFAULT_PREPROCESSORS: &[&'static str] = &["links", "index"];
+const DEFAULT_PREPROCESSORS: &[&str] = &["links", "index"];
 
 fn is_default_preprocessor(pre: &dyn Preprocessor) -> bool {
     let name = pre.name();
@@ -855,10 +870,9 @@ mod tests {
 
         let preprocessors = determine_preprocessors(&cfg).unwrap();
 
-        assert!(preprocessors
+        assert!(!preprocessors
             .iter()
-            .find(|preprocessor| preprocessor.name() == "random")
-            .is_none());
+            .any(|preprocessor| preprocessor.name() == "random"));
     }
 
     #[test]
@@ -875,10 +889,9 @@ mod tests {
 
         let preprocessors = determine_preprocessors(&cfg).unwrap();
 
-        assert!(preprocessors
+        assert!(!preprocessors
             .iter()
-            .find(|preprocessor| preprocessor.name() == "links")
-            .is_none());
+            .any(|preprocessor| preprocessor.name() == "links"));
     }
 
     #[test]

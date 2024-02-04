@@ -1,28 +1,22 @@
+use super::command_prelude::*;
 use crate::{get_book_dir, get_build_opts, open};
-use clap::{App, ArgMatches, SubCommand};
+use ignore::gitignore::Gitignore;
 use mdbook::errors::Result;
 use mdbook::utils;
 use mdbook::MDBook;
-use notify::Watcher;
+use pathdiff::diff_paths;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::channel;
 use std::thread::sleep;
 use std::time::Duration;
 
 // Create clap subcommand arguments
-pub fn make_subcommand<'a, 'b>() -> App<'a, 'b> {
-    SubCommand::with_name("watch")
+pub fn make_subcommand() -> Command {
+    Command::new("watch")
         .about("Watches a book's files and rebuilds it on changes")
-        .arg_from_usage(
-            "-d, --dest-dir=[dest-dir] 'Output directory for the book{n}\
-             Relative paths are interpreted relative to the book's root directory.{n}\
-             If omitted, mdBook uses build.build-dir from book.toml or defaults to `./book`.'",
-        )
-        .arg_from_usage(
-            "[dir] 'Root directory for the book{n}\
-             (Defaults to the Current Directory when omitted)'",
-        )
-        .arg_from_usage("-o, --open 'Open the compiled book in a web browser'")
+        .arg_dest_dir()
+        .arg_root_dir()
+        .arg_open()
         .arg_from_usage(
             "-l, --language=[language] 'Language to render the compiled book in.{n}\
                          Only valid if the [language] table in the config is not empty.{n}\
@@ -37,15 +31,20 @@ pub fn execute(args: &ArgMatches) -> Result<()> {
     let mut book = MDBook::load_with_build_opts(&book_dir, build_opts.clone())?;
 
     let update_config = |book: &mut MDBook| {
-        if let Some(dest_dir) = args.value_of("dest-dir") {
+        if let Some(dest_dir) = args.get_one::<PathBuf>("dest-dir") {
             book.config.build.build_dir = dest_dir.into();
         }
     };
     update_config(&mut book);
 
-    if args.is_present("open") {
+    if args.get_flag("open") {
         book.build()?;
-        open(book.build_dir_for("html").join("index.html"));
+        let path = book.build_dir_for("html").join("index.html");
+        if !path.exists() {
+            error!("No chapter available to open");
+            std::process::exit(1)
+        }
+        open(path);
     }
 
     trigger_on_change(&book, |paths, book_dir| {
@@ -72,14 +71,14 @@ fn remove_ignored_files(book_root: &Path, paths: &[PathBuf]) -> Vec<PathBuf> {
 
     match find_gitignore(book_root) {
         Some(gitignore_path) => {
-            match gitignore::File::new(gitignore_path.as_path()) {
-                Ok(exclusion_checker) => filter_ignored_files(exclusion_checker, paths),
-                Err(_) => {
-                    // We're unable to read the .gitignore file, so we'll silently allow everything.
-                    // Please see discussion: https://github.com/rust-lang/mdBook/pull/1051
-                    paths.iter().map(|path| path.to_path_buf()).collect()
-                }
+            let (ignore, err) = Gitignore::new(&gitignore_path);
+            if let Some(err) = err {
+                warn!(
+                    "error reading gitignore `{}`: {err}",
+                    gitignore_path.display()
+                );
             }
+            filter_ignored_files(ignore, paths)
         }
         None => {
             // There is no .gitignore file.
@@ -95,18 +94,22 @@ fn find_gitignore(book_root: &Path) -> Option<PathBuf> {
         .find(|p| p.exists())
 }
 
-fn filter_ignored_files(exclusion_checker: gitignore::File, paths: &[PathBuf]) -> Vec<PathBuf> {
+// Note: The usage of `canonicalize` may encounter occasional failures on the Windows platform, presenting a potential risk.
+// For more details, refer to [Pull Request #2229](https://github.com/rust-lang/mdBook/pull/2229#discussion_r1408665981).
+fn filter_ignored_files(ignore: Gitignore, paths: &[PathBuf]) -> Vec<PathBuf> {
+    let ignore_root = ignore
+        .path()
+        .canonicalize()
+        .expect("ignore root canonicalize error");
+
     paths
         .iter()
-        .filter(|path| match exclusion_checker.is_excluded(path) {
-            Ok(exclude) => !exclude,
-            Err(error) => {
-                warn!(
-                    "Unable to determine if {:?} is excluded: {:?}. Including it.",
-                    &path, error
-                );
-                true
-            }
+        .filter(|path| {
+            let relative_path =
+                diff_paths(&path, &ignore_root).expect("One of the paths should be an absolute");
+            !ignore
+                .matched_path_or_any_parents(&relative_path, relative_path.is_dir())
+                .is_ignore()
         })
         .map(|path| path.to_path_buf())
         .collect()
@@ -117,30 +120,46 @@ pub fn trigger_on_change<F>(book: &MDBook, closure: F)
 where
     F: Fn(Vec<PathBuf>, &Path),
 {
-    use notify::DebouncedEvent::*;
     use notify::RecursiveMode::*;
 
     // Create a channel to receive the events.
     let (tx, rx) = channel();
 
-    let mut watcher = match notify::watcher(tx, Duration::from_secs(1)) {
-        Ok(w) => w,
+    let mut debouncer = match notify_debouncer_mini::new_debouncer(Duration::from_secs(1), tx) {
+        Ok(d) => d,
         Err(e) => {
             error!("Error while trying to watch the files:\n\n\t{:?}", e);
             std::process::exit(1)
         }
     };
+    let watcher = debouncer.watcher();
 
     // Add the source directory to the watcher
-    if let Err(e) = watcher.watch(book.source_dir(), Recursive) {
+    if let Err(e) = watcher.watch(&book.source_dir(), Recursive) {
         error!("Error while watching {:?}:\n    {:?}", book.source_dir(), e);
         std::process::exit(1);
     };
 
-    let _ = watcher.watch(book.theme_dir(), Recursive);
+    let _ = watcher.watch(&book.theme_dir(), Recursive);
 
     // Add the book.toml file to the watcher if it exists
-    let _ = watcher.watch(book.root.join("book.toml"), NonRecursive);
+    let _ = watcher.watch(&book.root.join("book.toml"), NonRecursive);
+
+    for dir in &book.config.build.extra_watch_dirs {
+        let path = book.root.join(dir);
+        let canonical_path = path.canonicalize().unwrap_or_else(|e| {
+            error!("Error while watching extra directory {path:?}:\n    {e}");
+            std::process::exit(1);
+        });
+
+        if let Err(e) = watcher.watch(&canonical_path, Recursive) {
+            error!(
+                "Error while watching extra directory {:?}:\n    {:?}",
+                canonical_path, e
+            );
+            std::process::exit(1);
+        }
+    }
 
     info!("Listening for changes...");
 
@@ -151,21 +170,67 @@ where
 
         let all_events = std::iter::once(first_event).chain(other_events);
 
-        let paths = all_events
-            .filter_map(|event| {
-                debug!("Received filesystem event: {:?}", event);
-
-                match event {
-                    Create(path) | Write(path) | Remove(path) | Rename(_, path) => Some(path),
-                    _ => None,
+        let paths: Vec<_> = all_events
+            .filter_map(|event| match event {
+                Ok(events) => Some(events),
+                Err(error) => {
+                    log::warn!("error while watching for changes: {error}");
+                    None
                 }
             })
-            .collect::<Vec<_>>();
+            .flatten()
+            .map(|event| event.path)
+            .collect();
 
-        let paths = remove_ignored_files(&book.root, &paths[..]);
+        // If we are watching files outside the current repository (via extra-watch-dirs), then they are definitionally
+        // ignored by gitignore. So we handle this case by including such files into the watched paths list.
+        let any_external_paths = paths.iter().filter(|p| !p.starts_with(&book.root)).cloned();
+        let mut paths = remove_ignored_files(&book.root, &paths[..]);
+        paths.extend(any_external_paths);
 
         if !paths.is_empty() {
             closure(paths, &book.root);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ignore::gitignore::GitignoreBuilder;
+    use std::env;
+
+    #[test]
+    fn test_filter_ignored_files() {
+        let current_dir = env::current_dir().unwrap();
+
+        let ignore = GitignoreBuilder::new(&current_dir)
+            .add_line(None, "*.html")
+            .unwrap()
+            .build()
+            .unwrap();
+        let should_remain = current_dir.join("record.text");
+        let should_filter = current_dir.join("index.html");
+
+        let remain = filter_ignored_files(ignore, &[should_remain.clone(), should_filter]);
+        assert_eq!(remain, vec![should_remain])
+    }
+
+    #[test]
+    fn filter_ignored_files_should_handle_parent_dir() {
+        let current_dir = env::current_dir().unwrap();
+
+        let ignore = GitignoreBuilder::new(&current_dir)
+            .add_line(None, "*.html")
+            .unwrap()
+            .build()
+            .unwrap();
+
+        let parent_dir = current_dir.join("..");
+        let should_remain = parent_dir.join("record.text");
+        let should_filter = parent_dir.join("index.html");
+
+        let remain = filter_ignored_files(ignore, &[should_remain.clone(), should_filter]);
+        assert_eq!(remain, vec![should_remain])
     }
 }

@@ -10,6 +10,8 @@ use std::path::{Path, PathBuf};
 
 use super::{Preprocessor, PreprocessorContext};
 use crate::book::{Book, BookItem};
+use log::{error, warn};
+use once_cell::sync::Lazy;
 
 const ESCAPE_CHAR: char = '\\';
 const MAX_LINK_NESTED_DEPTH: usize = 10;
@@ -164,6 +166,7 @@ enum RangeOrAnchor {
 }
 
 // A range of lines specified with some include directive.
+#[allow(clippy::enum_variant_names)] // The prefix can't be removed, and is meant to mirror the contained type
 #[derive(PartialEq, Debug, Clone)]
 enum LineRange {
     Range(Range<usize>),
@@ -343,7 +346,7 @@ impl<'a> Link<'a> {
         let base = base.as_ref();
         match self.link_type {
             // omit the escape char
-            LinkType::Escaped => Ok((&self.link_text[1..]).to_owned()),
+            LinkType::Escaped => Ok(self.link_text[1..].to_owned()),
             LinkType::Include(ref pat, ref range_or_anchor) => {
                 let mut target = base.join(pat);
 
@@ -465,19 +468,20 @@ impl<'a> Iterator for LinkIter<'a> {
 fn find_links(contents: &str) -> LinkIter<'_> {
     // lazily compute following regex
     // r"\\\{\{#.*\}\}|\{\{#([a-zA-Z0-9]+)\s*([^}]+)\}\}")?;
-    lazy_static! {
-        static ref RE: Regex = Regex::new(
+    static RE: Lazy<Regex> = Lazy::new(|| {
+        Regex::new(
             r"(?x)              # insignificant whitespace mode
-            \\\{\{\#.*\}\}      # match escaped link
-            |                   # or
-            \{\{\s*             # link opening parens and whitespace
-            \#([a-zA-Z0-9_]+)   # link type
-            \s+                 # separating whitespace
-            ([^}]+)             # link target path and space separated properties
-            \}\}                # link closing parens"
+        \\\{\{\#.*\}\}      # match escaped link
+        |                   # or
+        \{\{\s*             # link opening parens and whitespace
+        \#([a-zA-Z0-9_]+)   # link type
+        \s+                 # separating whitespace
+        ([^}]+)             # link target path and space separated properties
+        \}\}                # link closing parens",
         )
-        .unwrap();
-    }
+        .unwrap()
+    });
+
     LinkIter(RE.captures_iter(contents))
 }
 

@@ -13,6 +13,7 @@ use crate::build_opts::BuildOpts;
 use crate::config::Config;
 use crate::errors::*;
 
+use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::path::PathBuf;

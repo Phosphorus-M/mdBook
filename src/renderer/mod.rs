@@ -27,7 +27,10 @@ use crate::book::LoadedBook;
 use crate::build_opts::BuildOpts;
 use crate::config::Config;
 use crate::errors::*;
+use log::{error, info, trace, warn};
 use toml::Value;
+
+use serde::{Deserialize, Serialize};
 
 /// An arbitrary `mdbook` backend.
 ///

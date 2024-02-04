@@ -8,6 +8,9 @@ use super::summary::{parse_summary, Link, SectionNumber, Summary, SummaryItem};
 use crate::build_opts::BuildOpts;
 use crate::config::Config;
 use crate::errors::*;
+use crate::utils::bracket_escape;
+use log::debug;
+use serde::{Deserialize, Serialize};
 
 /// Load a book into memory from its `src/` directory.
 pub fn load_book<P: AsRef<Path>>(
@@ -82,9 +85,7 @@ fn create_missing(src_dir: &Path, summary: &Summary) -> Result<()> {
         .chain(summary.suffix_chapters.iter())
         .collect();
 
-    while !items.is_empty() {
-        let next = items.pop().expect("already checked");
-
+    while let Some(next) = items.pop() {
         if let SummaryItem::Link(ref link) = *next {
             if let Some(ref location) = link.location {
                 let filename = src_dir.join(location);
@@ -108,8 +109,10 @@ fn create_missing_link(filename: &Path, link: &Link) -> Result<()> {
     }
     debug!("Creating missing file {}", filename.display());
 
-    let mut f = File::create(&filename)?;
-    writeln!(f, "# {}", link.name)?;
+    let mut f = File::create(&filename).with_context(|| {
+        format!("Unable to create missing file: {}", filename.display())
+    })?;
+    writeln!(f, "# {}", bracket_escape(&link.name))?;
 
     Ok(())
 }
@@ -441,7 +444,7 @@ fn load_chapter<P: AsRef<Path>>(
         }
 
         let stripped = location
-            .strip_prefix(&src_dir)
+            .strip_prefix(src_dir)
             .expect("Chapters are always inside a book");
 
         Chapter::new(&link.name, content, stripped, parent_names.clone())
@@ -489,7 +492,7 @@ impl<'a> Iterator for BookItems<'a> {
     fn next(&mut self) -> Option<Self::Item> {
         let item = self.items.pop_front();
 
-        if let Some(&BookItem::Chapter(ref ch)) = item {
+        if let Some(BookItem::Chapter(ch)) = item {
             // if we wanted a breadth-first iterator we'd `extend()` here
             for sub_item in ch.sub_items.iter().rev() {
                 self.items.push_front(sub_item);
