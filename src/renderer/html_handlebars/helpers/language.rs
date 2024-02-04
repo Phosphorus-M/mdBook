@@ -1,9 +1,10 @@
 use crate::config::LanguageConfig;
 use handlebars::{Context, Handlebars, Helper, Output, RenderContext, RenderError};
+use log::trace;
 use std::path::Path;
 
 pub fn language_option(
-    h: &Helper<'_, '_>,
+    h: &Helper<'_>,
     _r: &Handlebars<'_>,
     ctx: &Context,
     rc: &mut RenderContext<'_, '_>,

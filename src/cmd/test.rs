@@ -32,9 +32,9 @@ pub fn make_subcommand() -> Command {
                     search path when building tests",
                 ),
         )
-        .arg_from_usage("-l, --language=[language] 'Language to render the compiled book in.{n}\
+        .arg(arg!(-l --language "Language to render the compiled book in.{n}\
                          Only valid if the [language] table in the config is not empty.{n}\
-                         If omitted, builds all translations and provides a menu in the generated output for switching between them.'")
+                         If omitted, builds all translations and provides a menu in the generated output for switching between them."))
 }
 
 // test command implementation
@@ -44,8 +44,6 @@ pub fn execute(args: &ArgMatches) -> Result<()> {
         .map(|it| it.map(String::as_str).collect())
         .unwrap_or_default();
 
-    let chapter: Option<&str> = args.get_one::<String>("chapter").map(|s| s.as_str());
-
     let book_dir = get_book_dir(args);
     let build_opts = get_build_opts(args);
     let mut book = MDBook::load_with_build_opts(&book_dir, build_opts)?;
@@ -53,10 +51,9 @@ pub fn execute(args: &ArgMatches) -> Result<()> {
     if let Some(dest_dir) = args.get_one::<PathBuf>("dest-dir") {
         book.config.build.build_dir = dest_dir.to_path_buf();
     }
-    match chapter {
-        Some(_) => book.test_chapter(library_paths, chapter),
-        None => book.test(library_paths),
-    }?;
+
+    book.test(library_paths)?;
+
 
     Ok(())
 }

@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 
 use super::{Preprocessor, PreprocessorContext};
 use crate::book::{Book, BookItem};
-use log::{error, warn};
+use log::{debug, error, warn};
 use once_cell::sync::Lazy;
 
 const ESCAPE_CHAR: char = '\\';

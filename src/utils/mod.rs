@@ -4,7 +4,8 @@ pub mod fs;
 mod string;
 pub(crate) mod toml_ext;
 use crate::errors::Error;
-use log::error;
+use lazy_static::lazy_static;
+use log::{debug, error};
 use once_cell::sync::Lazy;
 use pulldown_cmark::{html, CodeBlockKind, CowStr, Event, Options, Parser, Tag};
 use regex::Regex;
@@ -506,6 +507,7 @@ more text with spaces
         use std::fs::File;
         use std::io::Write;
         use std::path::PathBuf;
+        use log::debug;
         use tempfile;
 
         #[test]

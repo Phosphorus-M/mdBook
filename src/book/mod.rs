@@ -346,19 +346,11 @@ impl MDBook {
                     _ => continue,
                 };
 
-                if let Some(chapter) = chapter {
-                    if ch.name != chapter && chapter_path.to_str() != Some(chapter) {
-                        if chapter == "?" {
-                            info!("Skipping chapter '{}'...", ch.name);
-                        }
-                        continue;
-                    }
-                }
-                chapter_found = true;
-                info!("Testing chapter '{}': {:?}", ch.name, chapter_path);
+                let path = self.source_dir().join(&chapter_path);
+                info!("Testing file: {:?}", path);
 
                 // write preprocessed file to tempdir
-                let path = temp_dir.path().join(chapter_path);
+                let path = temp_dir.path().join(&chapter_path);
                 let mut tmpf = utils::fs::create_file(&path)?;
                 tmpf.write_all(ch.content.as_bytes())?;
 
@@ -368,18 +360,17 @@ impl MDBook {
                 if let Some(edition) = self.config.rust.edition {
                     match edition {
                         RustEdition::E2015 => {
-                            cmd.args(["--edition", "2015"]);
+                            cmd.args(&["--edition", "2015"]);
                         }
                         RustEdition::E2018 => {
-                            cmd.args(["--edition", "2018"]);
+                            cmd.args(&["--edition", "2018"]);
                         }
                         RustEdition::E2021 => {
-                            cmd.args(["--edition", "2021"]);
+                            cmd.args(&["--edition", "2021"]);
                         }
                     }
                 }
 
-                debug!("running {:?}", cmd);
                 let output = cmd.output()?;
 
                 if !output.status.success() {
@@ -395,11 +386,6 @@ impl MDBook {
         }
         if failed {
             bail!("One or more tests failed");
-        }
-        if let Some(chapter) = chapter {
-            if !chapter_found {
-                bail!("Chapter not found: {}", chapter);
-            }
         }
         Ok(())
     }

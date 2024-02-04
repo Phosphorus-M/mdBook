@@ -1,5 +1,7 @@
 //! Build options.
 
+use serde::{Deserialize, Serialize};
+
 /// Build options passed from the frontend to control how the book is built.
 /// Separate from `Config`, which is global to all book languages.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]

@@ -11,17 +11,16 @@ pub fn make_subcommand() -> Command {
         .arg_dest_dir()
         .arg_root_dir()
         .arg_open()
-        .arg_from_usage(
-            "-l, --language=[language] 'Language to render the compiled book in.{n}\
-                         Only valid if the [language] table in the config is not empty.{n}\
-                         If omitted, builds all translations and provides a menu in the generated output for switching between them.'",
-        )
+        .arg(Arg::new("language").short('l').long("language").num_args(1).value_parser(clap::value_parser!(String)).help("Language to render the compiled book in.{n}\
+        Only valid if the [language] table in the config is not empty.{n}\
+        If omitted, builds all translations and provides a menu in the generated output for switching between them."))
 }
 
 // Build command implementation
 pub fn execute(args: &ArgMatches) -> Result<()> {
     let book_dir = get_book_dir(args);
     let opts = get_build_opts(args);
+    println!("llegan {:?}", opts.language_ident);
     let mut book = MDBook::load_with_build_opts(&book_dir, opts)?;
 
     if let Some(dest_dir) = args.get_one::<PathBuf>("dest-dir") {

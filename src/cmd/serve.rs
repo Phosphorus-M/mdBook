@@ -44,11 +44,9 @@ pub fn make_subcommand() -> Command {
                 .help("Port to use for HTTP connections"),
         )
         .arg_open()
-        .arg_from_usage(
-            "-l, --language=[language] 'Language to render the compiled book in.{n}\
-                         Only valid if the [language] table in the config is not empty.{n}\
-                         If omitted, builds all translations and provides a menu in the generated output for switching between them.'",
-        )
+        .arg(Arg::new("language").short('l').long("language").num_args(1).value_parser(clap::value_parser!(String)).help("Language to render the compiled book in.{n}\
+        Only valid if the [language] table in the config is not empty.{n}\
+        If omitted, builds all translations and provides a menu in the generated output for switching between them."))
 }
 
 // Serve command implementation

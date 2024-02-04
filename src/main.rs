@@ -135,10 +135,16 @@ fn get_book_dir(args: &ArgMatches) -> PathBuf {
 }
 
 fn get_build_opts(args: &ArgMatches) -> BuildOpts {
-    let language = args.value_of("language");
+
+    let language = if args.contains_id("language") {
+        args.get_one::<String>("language").map(String::from)
+    } else {
+        println!("No tiene lenguaje");
+        Some("no tiene".to_string())
+    };
 
     BuildOpts {
-        language_ident: language.map(String::from),
+        language_ident: language,
     }
 }
 

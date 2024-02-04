@@ -149,7 +149,7 @@ impl HtmlHandlebars {
             let rendered = handlebars.render("index", &data)?;
 
             let rendered =
-                self.post_process(rendered, &html_config.playground, ctx.config.rust.edition);
+                self.post_process(rendered, &html_config.playground, &html_config.code, ctx.config.rust.edition);
 
             utils::fs::write_file(destination, "print.html", rendered.as_bytes())?;
             debug!("Creating print.html ✓");
