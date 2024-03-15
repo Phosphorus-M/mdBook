@@ -32,9 +32,7 @@ pub fn make_subcommand() -> Command {
                     search path when building tests",
                 ),
         )
-        .arg(arg!(-l --language "Language to render the compiled book in.{n}\
-                         Only valid if the [language] table in the config is not empty.{n}\
-                         If omitted, builds all translations and provides a menu in the generated output for switching between them."))
+        .arg_language()
 }
 
 // test command implementation

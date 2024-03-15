@@ -36,6 +36,19 @@ pub trait CommandExt: Sized {
     fn arg_open(self) -> Self {
         self._arg(arg!(-o --open "Opens the compiled book in a web browser"))
     }
+
+    fn arg_language(self) -> Self {
+        self._arg(
+            Arg::new("language")
+            .short('l')
+            .long("language")
+            .num_args(1)
+            .value_parser(clap::value_parser!(String))
+            .help("Language to render the compiled book in.{n}\
+                Only valid if the [language] table in the config is not empty.{n}\
+                If omitted, builds all translations and provides a menu in the generated output for switching between them.")
+            )
+    }
 }
 
 impl CommandExt for Command {

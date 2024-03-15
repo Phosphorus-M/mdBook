@@ -11,9 +11,7 @@ pub fn make_subcommand() -> Command {
         .about("Deletes a built book")
         .arg_dest_dir()
         .arg_root_dir()
-        .arg(Arg::new("language").short('l').long("language").num_args(1).value_parser(clap::value_parser!(String)).help("Language to render the compiled book in.{n}\
-        Only valid if the [language] table in the config is not empty.{n}\
-        If omitted, builds all translations and provides a menu in the generated output for switching between them."))
+        .arg_language()
 }
 
 // Clean command implementation

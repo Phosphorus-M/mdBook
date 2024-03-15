@@ -17,11 +17,7 @@ pub fn make_subcommand() -> Command {
         .arg_dest_dir()
         .arg_root_dir()
         .arg_open()
-        .arg(arg!(
-            -l --language "Language to render the compiled book in.{n}\
-                         Only valid if the [language] table in the config is not empty.{n}\
-                         If omitted, builds all translations and provides a menu in the generated output for switching between them.")
-        )
+        .arg_language()
 }
 
 // Watch command implementation
