@@ -139,8 +139,7 @@ fn get_build_opts(args: &ArgMatches) -> BuildOpts {
     let language = if args.contains_id("language") {
         args.get_one::<String>("language").map(String::from)
     } else {
-        println!("No tiene lenguaje");
-        Some("no tiene".to_string())
+        None
     };
 
     BuildOpts {
