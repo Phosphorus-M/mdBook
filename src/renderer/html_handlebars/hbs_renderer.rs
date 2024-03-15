@@ -298,6 +298,11 @@ impl HtmlHandlebars {
             ch.name.clone() + " - " + book_title
         };
 
+        let slug = Path::new(&ctx_path)
+                            .file_stem()
+                            .with_context(|| "Could not remove extension from path")?;
+
+        ctx.data.insert("slug".to_owned(), json!(slug.to_str()));
         ctx.data.insert("path".to_owned(), json!(path));
         ctx.data.insert("content".to_owned(), json!(content));
         ctx.data.insert("chapter_title".to_owned(), json!(ch.name));
