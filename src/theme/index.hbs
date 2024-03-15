@@ -16,9 +16,9 @@
         {{> head}}
 
         {{#if (eq slug "title-page") }}
-            <link rel="canonical" href="{{ base_url }}/" />
+            <link rel="canonical" href="{{ site_url }}/" />
         {{else}}
-            <link rel="canonical" href="{{ base_url }}/{{ slug }}" />
+            <link rel="canonical" href="{{ site_url }}/{{ slug }}" />
         {{/if}}
 
         <meta name="description" content="{{ description }}">

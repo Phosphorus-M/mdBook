@@ -306,7 +306,7 @@ impl HtmlHandlebars {
 
         let slug = ctx_path.replace(".md", "");
 
-        let mut base_url = if let Some(site_url) = &ctx.html_config.site_url {
+        let mut site_url = if let Some(site_url) = &ctx.html_config.site_url {
             site_url.clone()
         } else {
             debug!(
@@ -317,7 +317,7 @@ impl HtmlHandlebars {
             String::from("/")
         };
 
-        ctx.data.insert("base_url".to_owned(), json!(base_url));
+        ctx.data.insert("site_url".to_owned(), json!(site_url));
         ctx.data.insert("slug".to_owned(), json!(slug));
         ctx.data.insert("path".to_owned(), json!(path));
         ctx.data.insert("content".to_owned(), json!(content));
