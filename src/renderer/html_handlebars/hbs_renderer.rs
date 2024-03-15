@@ -224,13 +224,19 @@ impl HtmlHandlebars {
         };
 
         if let Some(ref edit_url_template) = ctx.html_config.edit_url_template {
-            let full_path = ctx.book_config.src.to_str().unwrap_or_default().to_owned()
-                + "/"
-                + ch.source_path
-                    .clone()
-                    .unwrap_or_default()
-                    .to_str()
-                    .unwrap_or_default();
+            let mut full_path = ctx.book_config.src.to_str().unwrap_or_default().to_owned();
+
+            if let Some(lang) = language.clone() {
+                full_path = full_path + "/" + &lang;
+            }
+            
+            full_path = full_path
+                            + "/"
+                            + ch.source_path
+                                .clone()
+                                .unwrap_or_default()
+                                .to_str()
+                                .unwrap_or_default();
 
             let edit_url = edit_url_template.replace("{path}", &full_path);
             ctx.data
@@ -298,11 +304,21 @@ impl HtmlHandlebars {
             ch.name.clone() + " - " + book_title
         };
 
-        let slug = Path::new(&ctx_path)
-                            .file_stem()
-                            .with_context(|| "Could not remove extension from path")?;
+        let slug = ctx_path.replace(".md", "");
 
-        ctx.data.insert("slug".to_owned(), json!(slug.to_str()));
+        let mut base_url = if let Some(site_url) = &ctx.html_config.site_url {
+            site_url.clone()
+        } else {
+            debug!(
+                "HTML 'site-url' parameter not set, defaulting to '/'. Please configure \
+                    this to ensure the 404 page work correctly, especially if your site is hosted in a \
+                    subdirectory on the HTTP server."
+            );
+            String::from("/")
+        };
+
+        ctx.data.insert("base_url".to_owned(), json!(base_url));
+        ctx.data.insert("slug".to_owned(), json!(slug));
         ctx.data.insert("path".to_owned(), json!(path));
         ctx.data.insert("content".to_owned(), json!(content));
         ctx.data.insert("chapter_title".to_owned(), json!(ch.name));
