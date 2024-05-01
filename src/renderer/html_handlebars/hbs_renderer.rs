@@ -304,7 +304,7 @@ impl HtmlHandlebars {
             ch.name.clone() + " - " + book_title
         };
 
-        let slug = ctx_path.replace(".md", "");
+        let slug = ctx_path.replace(".md", "").replace("/index", "");
 
         let mut site_url = if let Some(site_url) = &ctx.html_config.site_url {
             site_url.clone()
