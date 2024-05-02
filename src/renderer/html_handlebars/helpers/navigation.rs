@@ -156,7 +156,7 @@ fn render(
                 .ok_or_else(|| {
                     RenderErrorReason::Other("Link could not be converted to str".to_owned())
                 })
-                .map(|p| context.insert("link".to_owned(), json!(p.replace('\\', "/"))))
+                .map(|p| context.insert("link".to_owned(), json!(p.replace('\\', "/").replace("/index.html", "/"))))
         })?;
 
     trace!("Render template");
