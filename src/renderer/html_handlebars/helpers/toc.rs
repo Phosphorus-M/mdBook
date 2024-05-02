@@ -136,7 +136,8 @@ impl HelperDef for RenderToc {
                         .to_str()
                         .unwrap()
                         // Hack for windows who tends to use `\` as separator instead of `/`
-                        .replace('\\', "/");
+                        .replace('\\', "/")
+                        .replace("/index.html", "/");
 
                     // Add link
                     out.write(&utils::fs::path_to_root(&current_path))?;
